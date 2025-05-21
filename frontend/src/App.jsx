@@ -3,7 +3,8 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
 import GenerateScript from './pages/GenerateScript';
 import ScriptEditor from './pages/ScriptEditor';
-import UploadScript from './pages/UploadScript'; // ✅ new page
+import UploadScript from './pages/UploadScript';
+import AvatarGenerator from './pages/AvatarGenerator'; // ✅ add this line
 
 function App() {
   return (
@@ -12,7 +13,8 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/generate" element={<GenerateScript />} />
         <Route path="/editor" element={<ScriptEditor />} />
-        <Route path="/upload" element={<UploadScript />} /> {/* ✅ new route */}
+        <Route path="/upload" element={<UploadScript />} />
+        <Route path="/avatar" element={<AvatarGenerator />} /> {/* ✅ new route */}
       </Routes>
     </Router>
   );
