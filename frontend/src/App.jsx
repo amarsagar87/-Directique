@@ -9,8 +9,7 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/generate" element={<GenerateScript />} />
-        <Route path="/editor" element={<ScriptEditor />} />
+    
       </Routes>
     </Router>
   );
