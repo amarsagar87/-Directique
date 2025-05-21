@@ -2,7 +2,6 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
-from typing import List
 import os
 
 app = FastAPI()
@@ -16,20 +15,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# OpenAI client (new SDK)
+# OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Request model for script generation
+# Models
 class ScriptRequest(BaseModel):
     title: str
     genre: str
     idea: str
 
-# Request model for uploaded script (for character extraction)
 class UploadScriptRequest(BaseModel):
     script: str
 
-# Endpoint 1: Generate a full 3-act script from an idea
+# Generate full script
 @app.post("/generate-script")
 async def generate_script(request: ScriptRequest):
     try:
@@ -50,23 +48,20 @@ Include: Beginning, Climax, and Ending."""
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-# Endpoint 2: Upload a script and extract character profiles
+# Upload script and extract characters
 @app.post("/upload-script")
 async def upload_script(request: UploadScriptRequest):
     try:
         prompt = f"""
-You are a script analyst. Extract a list of all characters from the following movie script.
-
-For each character, generate a detailed JSON profile with:
+Read this script and extract the main characters. For each character, return:
 - name
-- age (guess if not mentioned)
-- personality
-- appearance
-- voice_style
-- role in story (e.g. protagonist, antagonist, comic relief)
+- age (estimate)
+- role (e.g. protagonist, supporting)
+- personality (one sentence)
+- appearance (one sentence)
+- voice_style (e.g. deep, soft, raspy)
 
-Return only a JSON array of characters.
+Output format: JSON array of character objects.
 
 SCRIPT:
 {request.script}
@@ -74,14 +69,13 @@ SCRIPT:
 
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
+            messages=[{"role": "user", "content": prompt}]
         )
 
-        characters = response.choices[0].message.content
-        return {"characters": characters}
+        characters_text = response.choices[0].message.content
+
+        # Sanitize: ensure string is returned
+        return {"characters": characters_text}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-        
