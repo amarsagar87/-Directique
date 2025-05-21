@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 import os
+import json
 
 app = FastAPI()
 
@@ -27,7 +28,7 @@ class ScriptRequest(BaseModel):
 class UploadScriptRequest(BaseModel):
     script: str
 
-# Generate full script
+# Script generation endpoint
 @app.post("/generate-script")
 async def generate_script(request: ScriptRequest):
     try:
@@ -53,15 +54,17 @@ Include: Beginning, Climax, and Ending."""
 async def upload_script(request: UploadScriptRequest):
     try:
         prompt = f"""
-Read this script and extract the main characters. For each character, return:
-- name
-- age (estimate)
-- role (e.g. protagonist, supporting)
-- personality (one sentence)
-- appearance (one sentence)
-- voice_style (e.g. deep, soft, raspy)
+Read this movie/TV script and extract 2–5 key characters.
 
-Output format: JSON array of character objects.
+Return a JSON array of objects, each with:
+- name
+- age
+- role
+- personality
+- appearance
+- voice_style
+
+JSON format only, no extra commentary.
 
 SCRIPT:
 {request.script}
@@ -72,10 +75,22 @@ SCRIPT:
             messages=[{"role": "user", "content": prompt}]
         )
 
-        characters_text = response.choices[0].message.content
+        raw = response.choices[0].message.content.strip()
 
-        # Sanitize: ensure string is returned
-        return {"characters": characters_text}
+        # Try parsing the JSON directly
+        try:
+            characters = json.loads(raw)
+        except json.JSONDecodeError:
+            # Try extracting JSON substring manually
+            try:
+                start = raw.index("[")
+                end = raw.rindex("]") + 1
+                json_str = raw[start:end]
+                characters = json.loads(json_str)
+            except Exception:
+                raise HTTPException(status_code=500, detail="Could not parse valid character data.")
+
+        return {"characters": characters}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
