@@ -8,7 +8,7 @@ import requests
 
 app = FastAPI()
 
-# CORS setup
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,10 +17,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# OpenAI client
+# Initialize OpenAI
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# --- MODELS ---
+# ----- Data Models -----
 class ScriptRequest(BaseModel):
     title: str
     genre: str
@@ -36,7 +36,7 @@ class AvatarRequest(BaseModel):
     personality: str
     emotion: str  # e.g. "angry", "happy", "serious", "worried"
 
-# --- ENDPOINTS ---
+# ----- API Endpoints -----
 
 @app.post("/generate-script")
 async def generate_script(request: ScriptRequest):
@@ -52,8 +52,7 @@ Include: Beginning, Climax, and Ending."""
             messages=[{"role": "user", "content": prompt}]
         )
 
-        script = response.choices[0].message.content
-        return {"script": script}
+        return {"script": response.choices[0].message.content}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -86,15 +85,11 @@ SCRIPT:
 
         raw = response.choices[0].message.content.strip()
 
-        # Try parsing the JSON directly
         try:
             characters = json.loads(raw)
         except json.JSONDecodeError:
-            # Try extracting JSON substring manually
             try:
-                start = raw.index("[")
-                end = raw.rindex("]") + 1
-                json_str = raw[start:end]
+                json_str = raw[raw.index("["): raw.rindex("]") + 1]
                 characters = json.loads(json_str)
             except Exception:
                 raise HTTPException(status_code=500, detail="Could not parse valid character data.")
@@ -108,10 +103,13 @@ SCRIPT:
 @app.post("/generate-avatar")
 async def generate_avatar(request: AvatarRequest):
     try:
-        # Combine details for the prompt
-        full_prompt = f"portrait of {request.name}, age {request.age}, {request.appearance}, personality: {request.personality}, facial expression: {request.emotion}, ultra-detailed, cinematic lighting, studio background"
+        prompt = (
+            f"portrait of {request.name}, age {request.age}, "
+            f"{request.appearance}, personality: {request.personality}, "
+            f"facial expression: {request.emotion}, ultra-detailed, "
+            f"cinematic lighting, studio background"
+        )
 
-        # Replicate API call
         replicate_api_token = os.getenv("REPLICATE_API_TOKEN")
         if not replicate_api_token:
             raise HTTPException(status_code=500, detail="Replicate API token is missing")
@@ -123,9 +121,9 @@ async def generate_avatar(request: AvatarRequest):
                 "Content-Type": "application/json"
             },
             json={
-                "version": "7b0b37de0758655e73a3adf2daaf8b67aa8c45135d25f4d832da1f3c651d4f9a",  # example: stable-diffusion 1.5
+                "version": "7b0b37de0758655e73a3adf2daaf8b67aa8c45135d25f4d832da1f3c651d4f9a",
                 "input": {
-                    "prompt": full_prompt,
+                    "prompt": prompt,
                     "width": 512,
                     "height": 768,
                     "num_outputs": 1
