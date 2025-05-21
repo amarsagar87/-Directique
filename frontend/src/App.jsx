@@ -4,6 +4,7 @@ import Home from './pages/Home';
 import GenerateScript from './pages/GenerateScript';
 import ScriptEditor from './pages/ScriptEditor';
 import UploadScript from './pages/UploadScript';
+import AvatarGenerator from './pages/AvatarGenerator'; // ✅ NEW
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
         <Route path="/generate" element={<GenerateScript />} />
         <Route path="/editor" element={<ScriptEditor />} />
         <Route path="/upload" element={<UploadScript />} />
+        <Route path="/avatar" element={<AvatarGenerator />} /> {/* ✅ NEW */}
       </Routes>
     </Router>
   );
