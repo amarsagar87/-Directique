@@ -8,3 +8,4 @@ services:
       - key: OPENAI_API_KEY
         value: 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
     plan: free
+ 
