@@ -1,9 +1,8 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-from openai import OpenAI
+import requests
 import os
-import json
 
 app = FastAPI()
 
@@ -15,75 +14,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+class AvatarRequest(BaseModel):
+    name: str
+    age: int
+    appearance: str
+    personality: str
+    expression: str  # e.g., "smile", "angry", "sad"
 
-class ScriptRequest(BaseModel):
-    title: str
-    genre: str
-    idea: str
-
-class UploadScriptRequest(BaseModel):
-    script: str
-
-@app.post("/generate-script")
-async def generate_script(request: ScriptRequest):
+@app.post("/generate-avatar")
+async def generate_avatar(request: AvatarRequest):
     try:
-        prompt = f"""Write a 3-act structured TV show or movie script based on the following:
-Title: {request.title}
-Genre: {request.genre}
-Story Idea: {request.idea}
-Include: Beginning, Climax, and Ending."""
-
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
+        prompt = f"Portrait of a {request.age}-year-old named {request.name}, {request.appearance}, personality: {request.personality}, facial expression: {request.expression}"
+        
+        response = requests.post(
+            "https://api.replicate.com/v1/predictions",  # Example API
+            headers={
+                "Authorization": f"Token {os.getenv('REPLICATE_API_KEY')}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "version": "stable-diffusion-v1-5-id",  # Replace with working model ID
+                "input": {"prompt": prompt}
+            }
         )
-
-        script = response.choices[0].message.content
-        return {"script": script}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/upload-script")
-async def upload_script(request: UploadScriptRequest):
-    try:
-        prompt = f"""
-Read this movie/TV script and extract 2–5 key characters.
-
-Return a JSON array of objects, each with:
-- name
-- age
-- role
-- personality
-- appearance
-- voice_style
-
-JSON format only, no extra commentary.
-
-SCRIPT:
-{request.script}
-"""
-
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
-
-        raw = response.choices[0].message.content.strip()
-
-        try:
-            characters = json.loads(raw)
-        except json.JSONDecodeError:
-            try:
-                start = raw.index("[")
-                end = raw.rindex("]") + 1
-                json_str = raw[start:end]
-                characters = json.loads(json_str)
-            except Exception:
-                raise HTTPException(status_code=500, detail="Could not parse valid character data.")
-
-        return {"characters": json.dumps(characters)}  # ✅ return as string
+        data = response.json()
+        return {"image_url": data["urls"]["get"]}  # This varies by API
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
