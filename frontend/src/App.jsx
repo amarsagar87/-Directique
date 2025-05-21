@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
 import GenerateScript from './pages/GenerateScript';
 import ScriptEditor from './pages/ScriptEditor';
+import UploadScript from './pages/UploadScript'; // ✅ new page
 
 function App() {
   return (
@@ -11,6 +12,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/generate" element={<GenerateScript />} />
         <Route path="/editor" element={<ScriptEditor />} />
+        <Route path="/upload" element={<UploadScript />} /> {/* ✅ new route */}
       </Routes>
     </Router>
   );
