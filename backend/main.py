@@ -7,7 +7,6 @@ import json
 
 app = FastAPI()
 
-# CORS setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,10 +15,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Models
 class ScriptRequest(BaseModel):
     title: str
     genre: str
@@ -28,7 +25,6 @@ class ScriptRequest(BaseModel):
 class UploadScriptRequest(BaseModel):
     script: str
 
-# Script generation endpoint
 @app.post("/generate-script")
 async def generate_script(request: ScriptRequest):
     try:
@@ -49,7 +45,6 @@ Include: Beginning, Climax, and Ending."""
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Upload script and extract characters
 @app.post("/upload-script")
 async def upload_script(request: UploadScriptRequest):
     try:
@@ -77,11 +72,9 @@ SCRIPT:
 
         raw = response.choices[0].message.content.strip()
 
-        # Try parsing the JSON directly
         try:
             characters = json.loads(raw)
         except json.JSONDecodeError:
-            # Try extracting JSON substring manually
             try:
                 start = raw.index("[")
                 end = raw.rindex("]") + 1
@@ -90,7 +83,7 @@ SCRIPT:
             except Exception:
                 raise HTTPException(status_code=500, detail="Could not parse valid character data.")
 
-        return {"characters": characters}
+        return {"characters": json.dumps(characters)}  # ✅ return as string
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
