@@ -13,7 +13,6 @@ function App() {
         <Route path="/generate" element={<GenerateScript />} />
         <Route path="/editor" element={<ScriptEditor />} />
         <Route path="/upload" element={<UploadScript />} />
-        
       </Routes>
     </Router>
   );
