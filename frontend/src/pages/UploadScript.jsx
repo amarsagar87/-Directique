@@ -27,7 +27,11 @@ const UploadScript = () => {
       setLoading(false);
 
       try {
-        const parsedCharacters = JSON.parse(data.characters);
+        const parsedCharacters = JSON.parse(data.characters).map((char) => ({
+          ...char,
+          avatar: '', // placeholder for avatar image
+          avatarLoading: false,
+        }));
         setCharacters(parsedCharacters);
       } catch (err) {
         setError("Failed to parse character data. Try a simpler script.");
@@ -44,6 +48,40 @@ const UploadScript = () => {
     const updated = [...characters];
     updated[index][field] = value;
     setCharacters(updated);
+  };
+
+  const generateAvatar = async (index) => {
+    const character = characters[index];
+    const prompt = `Portrait of a character: ${character.appearance}. Personality: ${character.personality}`;
+
+    const updated = [...characters];
+    updated[index].avatarLoading = true;
+    setCharacters(updated);
+
+    try {
+      const response = await fetch("https://api.openai.com/v1/images/generations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.REACT_APP_OPENAI_KEY || 'sk-xxx'}` // Replace with secure env setup
+        },
+        body: JSON.stringify({
+          model: "dall-e-3",
+          prompt: prompt,
+          n: 1,
+          size: "512x512"
+        })
+      });
+
+      const result = await response.json();
+      updated[index].avatar = result.data[0].url;
+    } catch (err) {
+      console.error("Avatar generation failed:", err);
+      updated[index].avatar = '';
+    } finally {
+      updated[index].avatarLoading = false;
+      setCharacters([...updated]);
+    }
   };
 
   return (
@@ -69,8 +107,16 @@ const UploadScript = () => {
         <div className="mt-8">
           <h3 className="text-xl font-semibold mb-4">Generated Characters</h3>
           {characters.map((char, index) => (
-            <div key={index} className="border rounded p-4 mb-4 bg-gray-50">
-              <div className="grid grid-cols-2 gap-4">
+            <div key={index} className="border rounded p-4 mb-6 bg-gray-50">
+              {char.avatar && (
+                <img
+                  src={char.avatar}
+                  alt={`${char.name} avatar`}
+                  className="w-32 h-32 rounded-full mb-4 object-cover border"
+                />
+              )}
+
+              <div className="grid grid-cols-2 gap-4 mb-4">
                 {["name", "age", "role", "personality", "appearance", "voice_style"].map((field) => (
                   <div key={field}>
                     <label className="block text-sm font-medium mb-1 capitalize">{field.replace('_', ' ')}</label>
@@ -83,6 +129,14 @@ const UploadScript = () => {
                   </div>
                 ))}
               </div>
+
+              <button
+                onClick={() => generateAvatar(index)}
+                disabled={char.avatarLoading}
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              >
+                {char.avatarLoading ? "Generating Avatar..." : "Generate Avatar"}
+              </button>
             </div>
           ))}
         </div>
