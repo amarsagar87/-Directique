@@ -4,9 +4,8 @@ export default async function handler(req, res) {
   }
 
   const { name, age, appearance, personality, emotion } = req.body;
-  const replicateApiToken = process.env.REPLICATE_API_TOKEN;
 
-  console.log("Replicate Token: ", replicateApiToken); // TEMPORARY DEBUG LOG
+  const replicateApiToken = process.env.REPLICATE_API_TOKEN;
 
   if (!replicateApiToken) {
     return res.status(500).json({ error: 'Missing Replicate API token' });
@@ -22,12 +21,13 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        version: "db21e45a3b1151ae9c0fa60a3208c3e7f3e3ffcab6c171e42b27e3a79a0e10a4",
+        version: "aa1e7c60c7df0c74b1aa0b3c1e0aa80e3c7f564c76c1d024d3c24e4a0e1a9c3a", // SDXL
         input: {
-          prompt: prompt,
+          prompt,
           width: 512,
           height: 768,
-          num_outputs: 1
+          scheduler: "K_EULER",  // recommended by the model
+          num_inference_steps: 30
         }
       }),
     });
@@ -35,7 +35,7 @@ export default async function handler(req, res) {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Replicate API ERROR:', errorText);
-      return res.status(500).json({ error: errorText });
+      return res.status(500).json({ error: 'Failed to generate avatar' });
     }
 
     const data = await response.json();
