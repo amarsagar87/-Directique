@@ -1,13 +1,12 @@
-// /frontend/pages/api/generate-avatar.js
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   const { name, age, appearance, personality, emotion } = req.body;
-
   const replicateApiToken = process.env.REPLICATE_API_TOKEN;
+
+  console.log("Replicate Token: ", replicateApiToken); // TEMPORARY DEBUG LOG
 
   if (!replicateApiToken) {
     return res.status(500).json({ error: 'Missing Replicate API token' });
@@ -23,7 +22,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        version: "db21e45a3b1151ae9c0fa60a3208c3e7f3e3ffcab6c171e42b27e3a79a0e10a4", // Stability AI SDXL
+        version: "db21e45a3b1151ae9c0fa60a3208c3e7f3e3ffcab6c171e42b27e3a79a0e10a4",
         input: {
           prompt: prompt,
           width: 512,
@@ -35,16 +34,12 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Replicate Error:', errorText);
-      return res.status(500).json({ error: 'Failed to generate avatar' });
+      console.error('Replicate API ERROR:', errorText);
+      return res.status(500).json({ error: errorText });
     }
 
     const data = await response.json();
     const avatarUrl = data?.urls?.get;
-
-    if (!avatarUrl) {
-      return res.status(500).json({ error: 'Avatar URL not returned by Replicate' });
-    }
 
     return res.status(200).json({ avatar_url: avatarUrl });
 
