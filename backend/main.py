@@ -46,6 +46,11 @@ class AvatarRequest(BaseModel):
     personality: str
     emotion: str  # e.g. "angry", "happy", "serious", "worried"
 
+# --- Root sanity check route ---
+@app.get("/")
+async def root():
+    return {"message": "Directique backend is live"}
+
 # --- Endpoints ---
 
 @app.post("/generate-script")
