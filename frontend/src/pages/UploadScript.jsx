@@ -5,7 +5,6 @@ const UploadScript = () => {
   const [characters, setCharacters] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [generatingIndex, setGeneratingIndex] = useState(null);
 
   const handleUpload = async () => {
     if (!scriptText.trim()) {
@@ -45,29 +44,34 @@ const UploadScript = () => {
     setCharacters(updated);
   };
 
-  const generateAvatar = async (character, index) => {
-    setGeneratingIndex(index);
+  const handleGenerateAvatar = async (index) => {
+    const char = characters[index];
+
     try {
-      const response = await fetch('/api/generate-avatar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/generate-avatar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: character.name,
-          age: character.age,
-          appearance: character.appearance || 'realistic',
-          personality: character.personality || 'neutral',
-          emotion: 'neutral',
+          name: char.name,
+          age: char.age,
+          appearance: char.appearance || "neutral",
+          personality: char.personality || "neutral",
+          emotion: "neutral"
         })
       });
 
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Failed to generate avatar');
 
-      window.open(result.get_url, '_blank');
+      if (!response.ok) {
+        throw new Error(result.detail || "Failed to generate avatar");
+      }
+
+      const updated = [...characters];
+      updated[index].avatar_url = result.avatar_url;
+      setCharacters(updated);
     } catch (err) {
-      alert(err.message);
-    } finally {
-      setGeneratingIndex(null);
+      console.error("Avatar generation failed:", err.message);
+      alert("Avatar generation failed.");
     }
   };
 
@@ -96,7 +100,7 @@ const UploadScript = () => {
           {characters.map((char, index) => (
             <div key={index} className="border rounded p-4 mb-4 bg-gray-50">
               <div className="grid grid-cols-2 gap-4">
-                {['name', 'age', 'role', 'personality', 'appearance', 'voice_style'].map((field) => (
+                {["name", "age", "role", "personality", "appearance", "voice_style"].map((field) => (
                   <div key={field}>
                     <label className="block text-sm font-medium mb-1 capitalize">{field.replace('_', ' ')}</label>
                     <input
@@ -108,14 +112,20 @@ const UploadScript = () => {
                   </div>
                 ))}
               </div>
-              <div className="mt-4">
+              {char.avatar_url ? (
+                <img
+                  src={char.avatar_url}
+                  alt={`${char.name}'s avatar`}
+                  className="w-32 h-48 object-cover rounded mt-4"
+                />
+              ) : (
                 <button
-                  onClick={() => generateAvatar(char, index)}
-                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                  onClick={() => handleGenerateAvatar(index)}
+                  className="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
                 >
-                  {generatingIndex === index ? 'Generating Avatar...' : 'Generate Avatar'}
+                  Generate Avatar
                 </button>
-              </div>
+              )}
             </div>
           ))}
         </div>
