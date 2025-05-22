@@ -29,15 +29,8 @@ const UploadScript = () => {
         throw new Error(result.detail || 'Unknown error');
       }
 
-      let parsedCharacters = [];
-
-      try {
-        parsedCharacters = JSON.parse(result.characters);
-      } catch (err) {
-        throw new Error("Failed to parse character data. Try a simpler script.");
-      }
-
-      setCharacters(parsedCharacters);
+      // ✅ Use characters directly from result
+      setCharacters(result.characters);
     } catch (err) {
       setError(err.message || "An error occurred.");
       console.error(err);
@@ -82,7 +75,7 @@ const UploadScript = () => {
                     <label className="block text-sm font-medium mb-1 capitalize">{field.replace('_', ' ')}</label>
                     <input
                       type="text"
-                      value={char[field]}
+                      value={char[field] || ''}
                       onChange={(e) => handleCharacterChange(index, field, e.target.value)}
                       className="w-full border rounded p-2"
                     />
