@@ -4,6 +4,8 @@ const UploadScript = () => {
   const [scriptText, setScriptText] = useState('');
   const [characters, setCharacters] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [avatarLoading, setAvatarLoading] = useState({});
+  const [avatarUrls, setAvatarUrls] = useState({});
   const [error, setError] = useState('');
 
   const handleUpload = async () => {
@@ -44,34 +46,50 @@ const UploadScript = () => {
     setCharacters(updated);
   };
 
-  const handleGenerateAvatar = async (index) => {
-    const char = characters[index];
+  const generateAvatar = async (char, index) => {
+    setAvatarLoading((prev) => ({ ...prev, [index]: true }));
+    setError('');
 
     try {
-      const response = await fetch("/api/generate-avatar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: char.name,
-          age: char.age,
-          appearance: char.appearance || "neutral",
-          personality: char.personality || "neutral",
-          emotion: "neutral"
-        })
+      const initRes = await fetch('/api/generate-avatar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(char)
       });
 
-      const result = await response.json();
+      const initData = await initRes.json();
 
-      if (!response.ok) {
-        throw new Error(result.detail || "Failed to generate avatar");
+      if (!initRes.ok || !initData.prediction?.id) {
+        throw new Error(initData.error || "Failed to start avatar generation");
       }
 
-      const updated = [...characters];
-      updated[index].avatar_url = result.avatar_url;
-      setCharacters(updated);
+      const predictionId = initData.prediction.id;
+
+      const pollForAvatar = async () => {
+        const statusRes = await fetch('/api/get-avatar-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ predictionId })
+        });
+
+        const statusData = await statusRes.json();
+
+        if (statusData.status === 'succeeded' && statusData.output?.length > 0) {
+          setAvatarUrls((prev) => ({ ...prev, [index]: statusData.output[0] }));
+          setAvatarLoading((prev) => ({ ...prev, [index]: false }));
+        } else if (statusData.status === 'failed') {
+          throw new Error("Avatar generation failed");
+        } else {
+          setTimeout(pollForAvatar, 3000);
+        }
+      };
+
+      pollForAvatar();
+
     } catch (err) {
-      console.error("Avatar generation failed:", err.message);
-      alert("Avatar generation failed.");
+      setError(err.message || "Failed to generate avatar");
+      console.error(err);
+      setAvatarLoading((prev) => ({ ...prev, [index]: false }));
     }
   };
 
@@ -105,26 +123,36 @@ const UploadScript = () => {
                     <label className="block text-sm font-medium mb-1 capitalize">{field.replace('_', ' ')}</label>
                     <input
                       type="text"
-                      value={char[field] || ''}
+                      value={char[field]}
                       onChange={(e) => handleCharacterChange(index, field, e.target.value)}
                       className="w-full border rounded p-2"
                     />
                   </div>
                 ))}
               </div>
-              {char.avatar_url ? (
-                <img
-                  src={char.avatar_url}
-                  alt={`${char.name}'s avatar`}
-                  className="w-32 h-48 object-cover rounded mt-4"
+
+              <div className="mt-4">
+                <label className="block text-sm font-medium mb-1">Emotion</label>
+                <input
+                  type="text"
+                  placeholder="e.g. happy, angry"
+                  value={char.emotion || ''}
+                  onChange={(e) => handleCharacterChange(index, 'emotion', e.target.value)}
+                  className="w-full border rounded p-2 mb-2"
                 />
-              ) : (
                 <button
-                  onClick={() => handleGenerateAvatar(index)}
-                  className="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                  onClick={() => generateAvatar(char, index)}
+                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                  disabled={avatarLoading[index]}
                 >
-                  Generate Avatar
+                  {avatarLoading[index] ? "Generating Avatar..." : "Generate Avatar"}
                 </button>
+              </div>
+
+              {avatarUrls[index] && (
+                <div className="mt-4">
+                  <img src={avatarUrls[index]} alt="Avatar" className="rounded shadow w-64" />
+                </div>
               )}
             </div>
           ))}
