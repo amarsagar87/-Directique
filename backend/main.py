@@ -34,7 +34,7 @@ class AvatarRequest(BaseModel):
     age: int
     appearance: str
     personality: str
-    emotion: str
+    emotion: str  # e.g. "angry", "happy", "serious", "worried"
 
 # --- ENDPOINTS ---
 
@@ -63,8 +63,9 @@ Include: Beginning, Climax, and Ending."""
 async def upload_script(request: UploadScriptRequest):
     try:
         prompt = f"""
-Return ONLY the key characters from this script (2–5 max) in *valid JSON* format.
-Each character must include:
+Read this movie/TV script and extract 2–5 key characters.
+
+Return a JSON array of objects, each with:
 - name
 - age
 - role
@@ -72,19 +73,7 @@ Each character must include:
 - appearance
 - voice_style
 
-FORMAT:
-[
-  {{
-    "name": "Name",
-    "age": 30,
-    "role": "Main role",
-    "personality": "sarcastic, witty",
-    "appearance": "tall, messy hair, glasses",
-    "voice_style": "raspy and fast-talking"
-  }}
-]
-
-DO NOT include any explanation. JUST the JSON array.
+JSON format only. No extra commentary.
 
 SCRIPT:
 {request.script}
@@ -95,10 +84,24 @@ SCRIPT:
             messages=[{"role": "user", "content": prompt}]
         )
 
-        raw = response.choices[0].message.content.strip()
+        raw_output = response.choices[0].message.content.strip()
 
-        # TEMPORARY DEBUGGING RETURN
-        return {"raw_output": raw}
+        # Try parsing JSON directly
+        try:
+            characters = json.loads(raw_output)
+            return {"characters": characters, "raw_output": raw_output}
+        except json.JSONDecodeError:
+            try:
+                start = raw_output.index("[")
+                end = raw_output.rindex("]") + 1
+                json_str = raw_output[start:end]
+                characters = json.loads(json_str)
+                return {"characters": characters, "raw_output": raw_output}
+            except Exception:
+                return {
+                    "error": "Could not parse character data.",
+                    "raw_output": raw_output
+                }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
