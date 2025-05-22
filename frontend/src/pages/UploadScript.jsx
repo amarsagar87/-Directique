@@ -1,3 +1,4 @@
+// UploadScript.jsx
 import React, { useState } from 'react';
 
 const UploadScript = () => {
@@ -30,15 +31,17 @@ const UploadScript = () => {
       }
 
       let parsedCharacters = [];
-
       try {
-        parsedCharacters = JSON.parse(result.characters);
+        if (Array.isArray(result.characters)) {
+          parsedCharacters = result.characters;
+        } else {
+          parsedCharacters = JSON.parse(result.characters);
+        }
       } catch (err) {
         throw new Error("Failed to parse character data. Try a simpler script.");
       }
 
-      // Add empty avatar_url to each character
-      setCharacters(parsedCharacters.map(c => ({ ...c, avatar_url: '' })));
+      setCharacters(parsedCharacters);
     } catch (err) {
       setError(err.message || "An error occurred.");
       console.error(err);
@@ -51,42 +54,6 @@ const UploadScript = () => {
     const updated = [...characters];
     updated[index][field] = value;
     setCharacters(updated);
-  };
-
-  const generateAvatar = async (index) => {
-    const char = characters[index];
-    setLoading(true);
-    setError('');
-
-    try {
-      const response = await fetch('https://directique-backend.onrender.com/generate-avatar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: char.name || 'Unnamed Character',
-          age: parseInt(char.age) || 30,
-          appearance: char.appearance || 'average features',
-          personality: char.personality || 'neutral',
-          emotion: 'neutral'
-        })
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.detail || 'Failed to generate avatar');
-      }
-
-      const updated = [...characters];
-      updated[index].avatar_url = result.avatar_url;
-      setCharacters(updated);
-
-    } catch (err) {
-      console.error(err);
-      setError(err.message || 'Avatar generation failed.');
-    } finally {
-      setLoading(false);
-    }
   };
 
   return (
@@ -119,30 +86,12 @@ const UploadScript = () => {
                     <label className="block text-sm font-medium mb-1 capitalize">{field.replace('_', ' ')}</label>
                     <input
                       type="text"
-                      value={char[field]}
+                      value={char[field] || ''}
                       onChange={(e) => handleCharacterChange(index, field, e.target.value)}
                       className="w-full border rounded p-2"
                     />
                   </div>
                 ))}
-              </div>
-
-              <div className="mt-4 flex gap-4 items-center">
-                <button
-                  onClick={() => generateAvatar(index)}
-                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                  disabled={loading}
-                >
-                  {loading ? "Generating..." : "Generate Avatar"}
-                </button>
-
-                {char.avatar_url && (
-                  <img
-                    src={char.avatar_url}
-                    alt="Avatar"
-                    className="w-24 h-32 rounded shadow-lg"
-                  />
-                )}
               </div>
             </div>
           ))}
