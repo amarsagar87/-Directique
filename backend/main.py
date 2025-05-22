@@ -1,32 +1,28 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 import os
 import json
-import requests
 import re
+import requests
 import logging
 
-# --- SETUP LOGGING ---
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s"
-)
+# Setup logging
+logging.basicConfig(level=logging.INFO)
 
-# --- FASTAPI APP ---
 app = FastAPI()
 
-# --- CORS ---
+# CORS setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Change to specific domains in production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- OPENAI ---
+# OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # --- MODELS ---
@@ -43,20 +39,20 @@ class AvatarRequest(BaseModel):
     age: int
     appearance: str
     personality: str
-    emotion: str
+    emotion: str  # e.g. "angry", "happy", "serious", "worried"
 
 # --- ENDPOINTS ---
 
 @app.post("/generate-script")
 async def generate_script(request: ScriptRequest):
     try:
-        logging.info(f"Generating script for: {request.title} | Genre: {request.genre}")
+        logging.info(f"Generating script for: {request.title}")
 
-        prompt = f"""Write a 3-act TV or movie script based on:
+        prompt = f"""Write a 3-act structured TV show or movie script based on the following:
 Title: {request.title}
 Genre: {request.genre}
-Idea: {request.idea}
-Structure it with a clear Beginning, Climax, and Ending."""
+Story Idea: {request.idea}
+Include: Beginning, Climax, and Ending."""
 
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
@@ -64,23 +60,22 @@ Structure it with a clear Beginning, Climax, and Ending."""
         )
 
         script = response.choices[0].message.content
-        logging.info("Script generated successfully.")
         return {"script": script}
 
     except Exception as e:
         logging.error(f"Script generation failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Script generation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/upload-script")
 async def upload_script(request: UploadScriptRequest):
     try:
-        logging.info("Parsing script to extract characters.")
+        logging.info("Extracting characters from uploaded script...")
 
         prompt = f"""
-Extract 2–5 main characters from this script.
+Read this movie/TV script and extract 2–5 key characters.
 
-For each character, return a JSON object with:
+Return a JSON array of objects, each with:
 - name
 - age
 - role
@@ -88,7 +83,7 @@ For each character, return a JSON object with:
 - appearance
 - voice_style
 
-Only return a JSON array. No extra commentary.
+Only return JSON. No extra commentary or formatting.
 
 SCRIPT:
 {request.script}
@@ -100,39 +95,38 @@ SCRIPT:
         )
 
         raw = response.choices[0].message.content.strip()
-        logging.info("Raw OpenAI response received.")
+        logging.info(f"Raw OpenAI response:\n{raw}")
 
-        # Try parsing JSON content using regex
-        json_match = re.search(r"\[.*\]", raw, re.DOTALL)
-        if json_match:
-            characters = json.loads(json_match.group())
-            logging.info("Characters parsed successfully.")
+        # Try extracting JSON
+        json_str = ""
+        if raw.startswith("[") and raw.endswith("]"):
+            json_str = raw
         else:
-            logging.warning("Failed to extract JSON from OpenAI response.")
-            raise HTTPException(status_code=400, detail="Failed to parse character data. Try a simpler script.")
+            match = re.search(r"\[.*\]", raw, re.DOTALL)
+            if match:
+                json_str = match.group(0)
+            else:
+                raise HTTPException(status_code=400, detail="Could not find character list. Try simplifying the script.")
 
+        characters = json.loads(json_str)
+        logging.info(f"Characters extracted: {characters}")
         return {"characters": characters}
 
     except Exception as e:
-        logging.error(f"Upload parsing failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Upload parsing failed: {str(e)}")
+        logging.error(f"Failed to parse characters: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to parse character data. Try a simpler script.")
 
 
 @app.post("/generate-avatar")
 async def generate_avatar(request: AvatarRequest):
     try:
-        logging.info(f"Generating avatar for: {request.name}")
+        logging.info(f"Generating avatar for {request.name}...")
 
-        full_prompt = (
-            f"portrait of {request.name}, age {request.age}, {request.appearance}, "
-            f"personality: {request.personality}, facial expression: {request.emotion}, "
-            f"ultra-detailed, cinematic lighting, studio background"
-        )
+        full_prompt = f"portrait of {request.name}, age {request.age}, {request.appearance}, personality: {request.personality}, facial expression: {request.emotion}, ultra-detailed, cinematic lighting, studio background"
 
         replicate_api_token = os.getenv("REPLICATE_API_TOKEN")
         if not replicate_api_token:
-            logging.error("Missing Replicate API token")
-            raise HTTPException(status_code=500, detail="Missing Replicate API token")
+            raise HTTPException(status_code=500, detail="Replicate API token is missing")
 
         response = requests.post(
             "https://api.replicate.com/v1/predictions",
@@ -141,7 +135,7 @@ async def generate_avatar(request: AvatarRequest):
                 "Content-Type": "application/json"
             },
             json={
-                "version": "7b0b37de0758655e73a3adf2daaf8b67aa8c45135d25f4d832da1f3c651d4f9a",
+                "version": "7b0b37de0758655e73a3adf2daaf8b67aa8c45135d25f4d832da1f3c651d4f9a",  # Stable Diffusion
                 "input": {
                     "prompt": full_prompt,
                     "width": 512,
@@ -152,13 +146,14 @@ async def generate_avatar(request: AvatarRequest):
         )
 
         if response.status_code != 201:
-            logging.warning("Replicate API failed to generate avatar.")
-            raise HTTPException(status_code=500, detail="Avatar generation failed")
+            logging.error(f"Replicate API error: {response.text}")
+            raise HTTPException(status_code=500, detail="Failed to generate avatar")
 
         output = response.json()
-        logging.info("Avatar generated successfully.")
-        return {"avatar_url": output.get("urls", {}).get("get")}
+        avatar_url = output.get("urls", {}).get("get")
+        logging.info(f"Avatar URL: {avatar_url}")
+        return {"avatar_url": avatar_url}
 
     except Exception as e:
         logging.error(f"Avatar generation failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Avatar generation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
