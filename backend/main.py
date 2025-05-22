@@ -15,10 +15,10 @@ formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
-# --- FastAPI app ---
+# --- FastAPI App ---
 app = FastAPI()
 
-# --- CORS ---
+# --- CORS Middleware ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -45,11 +45,6 @@ class AvatarRequest(BaseModel):
     appearance: str
     personality: str
     emotion: str  # e.g. "angry", "happy", "serious", "worried"
-
-# --- Root sanity check route ---
-@app.get("/")
-async def root():
-    return {"message": "Directique backend is live"}
 
 # --- Endpoints ---
 
@@ -126,6 +121,7 @@ SCRIPT:
 async def generate_avatar(request: AvatarRequest):
     try:
         full_prompt = f"portrait of {request.name}, age {request.age}, {request.appearance}, personality: {request.personality}, facial expression: {request.emotion}, ultra-detailed, cinematic lighting, studio background"
+        logger.debug(f"Avatar prompt: {full_prompt}")
 
         replicate_api_token = os.getenv("REPLICATE_API_TOKEN")
         if not replicate_api_token:
@@ -149,13 +145,18 @@ async def generate_avatar(request: AvatarRequest):
             }
         )
 
-        if response.status_code != 201:
-            logger.error(f"Avatar generation failed: {response.text}")
+        logger.debug(f"Replicate status: {response.status_code}")
+        logger.debug(f"Replicate raw output: {response.text}")
+
+        if response.status_code not in [200, 201]:
             raise HTTPException(status_code=500, detail="Failed to generate avatar")
 
         output = response.json()
         avatar_url = output.get("urls", {}).get("get")
-        logger.info(f"Generated avatar URL: {avatar_url}")
+        if not avatar_url:
+            raise HTTPException(status_code=500, detail="Avatar URL missing from response")
+
+        logger.info(f"Generated avatar: {avatar_url}")
         return {"avatar_url": avatar_url}
 
     except Exception as e:
