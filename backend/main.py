@@ -5,10 +5,10 @@ from openai import OpenAI
 import os
 import json
 import requests
+import re
 
 app = FastAPI()
 
-# CORS setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,10 +17,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# --- MODELS ---
 class ScriptRequest(BaseModel):
     title: str
     genre: str
@@ -34,9 +32,7 @@ class AvatarRequest(BaseModel):
     age: int
     appearance: str
     personality: str
-    emotion: str  # e.g. "angry", "happy", "serious", "worried"
-
-# --- ENDPOINTS ---
+    emotion: str
 
 @app.post("/generate-script")
 async def generate_script(request: ScriptRequest):
@@ -63,28 +59,20 @@ Include: Beginning, Climax, and Ending."""
 async def upload_script(request: UploadScriptRequest):
     try:
         prompt = f"""
-Extract 2 to 5 key characters from the movie or TV script below.
+Read this movie or TV script and return 2–5 main characters in this JSON format:
 
-For each character, return:
-- name
-- age (as a number)
-- role (1 short sentence)
-- personality (1-2 words)
-- appearance (brief description)
-- voice_style (tone or speaking style)
-
-Respond ONLY with valid JSON like:
 [
   {{
-    "name": "John",
-    "age": 32,
-    "role": "curious detective",
-    "personality": "skeptical",
-    "appearance": "tall, messy hair, trench coat",
-    "voice_style": "gravelly"
-  }},
-  ...
+    "name": "Character Name",
+    "age": 30,
+    "role": "short role description",
+    "personality": "1-2 words",
+    "appearance": "brief look",
+    "voice_style": "tone/style of speaking"
+  }}
 ]
+
+Return ONLY JSON. Do not add extra text.
 
 SCRIPT:
 {request.script}
@@ -97,18 +85,19 @@ SCRIPT:
 
         raw = response.choices[0].message.content.strip()
 
-        # Try direct JSON load
-        try:
-            characters = json.loads(raw)
-        except json.JSONDecodeError:
-            # Try extracting only the array part
-            try:
-                start = raw.index("[")
-                end = raw.rindex("]") + 1
-                json_str = raw[start:end]
-                characters = json.loads(json_str)
-            except Exception:
-                raise HTTPException(status_code=500, detail="Could not parse valid character data. Try rewording the script.")
+        # Clean up non-JSON parts if any
+        json_str_match = re.search(r"\[\s*{.*?}\s*]", raw, re.DOTALL)
+        if not json_str_match:
+            raise HTTPException(status_code=500, detail="AI returned invalid data. Try a simpler script.")
+
+        characters_json = json_str_match.group()
+        characters = json.loads(characters_json)
+
+        # Optional: validate structure
+        for char in characters:
+            for field in ["name", "age", "role", "personality", "appearance", "voice_style"]:
+                if field not in char:
+                    raise HTTPException(status_code=500, detail=f"Missing '{field}' in character output.")
 
         return {"characters": characters}
 
@@ -119,7 +108,7 @@ SCRIPT:
 @app.post("/generate-avatar")
 async def generate_avatar(request: AvatarRequest):
     try:
-        full_prompt = f"portrait of {request.name}, age {request.age}, {request.appearance}, personality: {request.personality}, facial expression: {request.emotion}, ultra-detailed, cinematic lighting, studio background"
+        prompt = f"portrait of {request.name}, age {request.age}, {request.appearance}, personality: {request.personality}, facial expression: {request.emotion}, ultra-detailed, cinematic lighting, studio background"
 
         replicate_api_token = os.getenv("REPLICATE_API_TOKEN")
         if not replicate_api_token:
@@ -134,7 +123,7 @@ async def generate_avatar(request: AvatarRequest):
             json={
                 "version": "7b0b37de0758655e73a3adf2daaf8b67aa8c45135d25f4d832da1f3c651d4f9a",
                 "input": {
-                    "prompt": full_prompt,
+                    "prompt": prompt,
                     "width": 512,
                     "height": 768,
                     "num_outputs": 1
