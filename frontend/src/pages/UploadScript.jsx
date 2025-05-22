@@ -5,6 +5,7 @@ const UploadScript = () => {
   const [characters, setCharacters] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [generatingAvatars, setGeneratingAvatars] = useState({});
 
   const handleUpload = async () => {
     if (!scriptText.trim()) {
@@ -29,18 +30,7 @@ const UploadScript = () => {
         throw new Error(result.detail || 'Unknown error');
       }
 
-      let parsedCharacters = [];
-      try {
-        if (Array.isArray(result.characters)) {
-          parsedCharacters = result.characters;
-        } else {
-          parsedCharacters = JSON.parse(result.characters);
-        }
-      } catch (err) {
-        throw new Error("Failed to parse character data. Try a simpler script.");
-      }
-
-      setCharacters(parsedCharacters);
+      setCharacters(result.characters.map(char => ({ ...char, avatar_url: null })));
     } catch (err) {
       setError(err.message || "An error occurred.");
       console.error(err);
@@ -53,6 +43,44 @@ const UploadScript = () => {
     const updated = [...characters];
     updated[index][field] = value;
     setCharacters(updated);
+  };
+
+  const handleGenerateAvatar = async (index) => {
+    const char = characters[index];
+    if (!char.name || !char.age || !char.appearance || !char.personality || !char.voice_style) {
+      alert("Please fill all fields before generating avatar.");
+      return;
+    }
+
+    setGeneratingAvatars(prev => ({ ...prev, [index]: true }));
+
+    try {
+      const response = await fetch('https://directique-backend.onrender.com/generate-avatar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: char.name,
+          age: char.age,
+          appearance: char.appearance,
+          personality: char.personality,
+          emotion: char.voice_style || 'neutral'
+        })
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        const updated = [...characters];
+        updated[index].avatar_url = result.avatar_url;
+        setCharacters(updated);
+      } else {
+        throw new Error(result.detail || 'Avatar generation failed');
+      }
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setGeneratingAvatars(prev => ({ ...prev, [index]: false }));
+    }
   };
 
   return (
@@ -85,12 +113,28 @@ const UploadScript = () => {
                     <label className="block text-sm font-medium mb-1 capitalize">{field.replace('_', ' ')}</label>
                     <input
                       type="text"
-                      value={char[field] || ''}
+                      value={char[field]}
                       onChange={(e) => handleCharacterChange(index, field, e.target.value)}
                       className="w-full border rounded p-2"
                     />
                   </div>
                 ))}
+              </div>
+
+              <div className="mt-4 text-center">
+                <button
+                  onClick={() => handleGenerateAvatar(index)}
+                  disabled={generatingAvatars[index]}
+                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                >
+                  {generatingAvatars[index] ? "Generating Avatar..." : "Generate Avatar"}
+                </button>
+
+                {char.avatar_url && (
+                  <div className="mt-4">
+                    <img src={char.avatar_url} alt="Avatar" className="rounded-xl shadow-lg mx-auto" />
+                  </div>
+                )}
               </div>
             </div>
           ))}
