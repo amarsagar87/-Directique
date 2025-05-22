@@ -5,7 +5,6 @@ const UploadScript = () => {
   const [characters, setCharacters] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [generatingAvatars, setGeneratingAvatars] = useState({});
 
   const handleUpload = async () => {
     if (!scriptText.trim()) {
@@ -30,10 +29,9 @@ const UploadScript = () => {
         throw new Error(result.detail || 'Unknown error');
       }
 
-      setCharacters(result.characters.map(char => ({ ...char, avatar_url: null })));
+      setCharacters(result.characters.map((char) => ({ ...char, avatar_url: '', generating: false })));
     } catch (err) {
       setError(err.message || "An error occurred.");
-      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -45,14 +43,11 @@ const UploadScript = () => {
     setCharacters(updated);
   };
 
-  const handleGenerateAvatar = async (index) => {
+  const generateAvatar = async (index) => {
     const char = characters[index];
-    if (!char.name || !char.age || !char.appearance || !char.personality || !char.voice_style) {
-      alert("Please fill all fields before generating avatar.");
-      return;
-    }
-
-    setGeneratingAvatars(prev => ({ ...prev, [index]: true }));
+    const updated = [...characters];
+    updated[index].generating = true;
+    setCharacters(updated);
 
     try {
       const response = await fetch('https://directique-backend.onrender.com/generate-avatar', {
@@ -60,26 +55,27 @@ const UploadScript = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: char.name,
-          age: char.age,
-          appearance: char.appearance,
-          personality: char.personality,
-          emotion: char.voice_style || 'neutral'
+          age: char.age || 30,
+          appearance: char.appearance || 'neutral appearance',
+          personality: char.personality || 'neutral personality',
+          emotion: 'neutral'
         })
       });
 
       const result = await response.json();
 
-      if (response.ok) {
-        const updated = [...characters];
-        updated[index].avatar_url = result.avatar_url;
-        setCharacters(updated);
-      } else {
+      if (!response.ok) {
         throw new Error(result.detail || 'Avatar generation failed');
       }
+
+      updated[index].avatar_url = result.avatar_url;
     } catch (err) {
-      alert(err.message);
+      console.error('Avatar generation error:', err.message);
+      updated[index].avatar_url = '';
+      alert('Failed to generate avatar.');
     } finally {
-      setGeneratingAvatars(prev => ({ ...prev, [index]: false }));
+      updated[index].generating = false;
+      setCharacters(updated);
     }
   };
 
@@ -106,8 +102,8 @@ const UploadScript = () => {
         <div className="mt-8">
           <h3 className="text-xl font-semibold mb-4">Generated Characters</h3>
           {characters.map((char, index) => (
-            <div key={index} className="border rounded p-4 mb-4 bg-gray-50">
-              <div className="grid grid-cols-2 gap-4">
+            <div key={index} className="border rounded p-4 mb-6 bg-gray-50 shadow-lg">
+              <div className="grid grid-cols-2 gap-4 mb-4">
                 {["name", "age", "role", "personality", "appearance", "voice_style"].map((field) => (
                   <div key={field}>
                     <label className="block text-sm font-medium mb-1 capitalize">{field.replace('_', ' ')}</label>
@@ -121,21 +117,21 @@ const UploadScript = () => {
                 ))}
               </div>
 
-              <div className="mt-4 text-center">
-                <button
-                  onClick={() => handleGenerateAvatar(index)}
-                  disabled={generatingAvatars[index]}
-                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                >
-                  {generatingAvatars[index] ? "Generating Avatar..." : "Generate Avatar"}
-                </button>
+              <button
+                onClick={() => generateAvatar(index)}
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                disabled={char.generating}
+              >
+                {char.generating ? "Generating Avatar..." : "Generate Avatar"}
+              </button>
 
-                {char.avatar_url && (
-                  <div className="mt-4">
-                    <img src={char.avatar_url} alt="Avatar" className="rounded-xl shadow-lg mx-auto" />
-                  </div>
-                )}
-              </div>
+              {char.avatar_url && (
+                <img
+                  src={char.avatar_url}
+                  alt={`${char.name}'s Avatar`}
+                  className="mt-4 rounded-xl border shadow-lg max-w-xs"
+                />
+              )}
             </div>
           ))}
         </div>
