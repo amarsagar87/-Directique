@@ -4,10 +4,10 @@ export default async function handler(req, res) {
   }
 
   const { name, age, appearance, personality, emotion } = req.body;
-
   const replicateApiToken = process.env.REPLICATE_API_TOKEN;
 
   if (!replicateApiToken) {
+    console.error('Missing Replicate API Token');
     return res.status(500).json({ error: 'Replicate API token missing' });
   }
 
@@ -21,36 +21,27 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        version: "7762fd07cf82c948538e41f63f77d685e02b063e37e496e96eefd46c929f9bdc",
+        version: "7762fd07cf82c948538e41f63f77d685e02b063e37e496e96eefd46c929f9bdc", // Stability SDXL
         input: {
           prompt,
           width: 512,
           height: 768,
-          num_outputs: 1
+          num_outputs: 1,
         }
-      })
+      }),
     });
 
     const result = await response.json();
 
     if (!response.ok) {
-      console.error('Replicate API error:', result);  // Print on server
-      return res.status(500).json({
-        error: 'Failed to start avatar generation',
-        replicateError: result // Return full raw response to browser
-      });
+      console.error('Replicate API Error:', result); // 🔥 This will now show in Vercel logs
+      return res.status(500).json({ error: 'Failed to start avatar generation', details: result });
     }
 
-    res.status(200).json({
-      status: result.status,
-      prediction: result
-    });
+    res.status(200).json({ status: result.status, prediction: result });
 
-  } catch (error) {
-    console.error('Server error:', error);
-    res.status(500).json({
-      error: 'Server error while generating avatar',
-      message: error.message
-    });
+  } catch (err) {
+    console.error('Server Error:', err); // 🔥 This will also show
+    res.status(500).json({ error: 'Server error while generating avatar' });
   }
 }
