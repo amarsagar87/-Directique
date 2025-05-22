@@ -8,7 +8,7 @@ import requests
 
 app = FastAPI()
 
-# Enable CORS
+# CORS setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,10 +17,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize OpenAI
+# OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# ----- Data Models -----
+# --- MODELS ---
 class ScriptRequest(BaseModel):
     title: str
     genre: str
@@ -36,7 +36,7 @@ class AvatarRequest(BaseModel):
     personality: str
     emotion: str  # e.g. "angry", "happy", "serious", "worried"
 
-# ----- API Endpoints -----
+# --- ENDPOINTS ---
 
 @app.post("/generate-script")
 async def generate_script(request: ScriptRequest):
@@ -52,7 +52,8 @@ Include: Beginning, Climax, and Ending."""
             messages=[{"role": "user", "content": prompt}]
         )
 
-        return {"script": response.choices[0].message.content}
+        script = response.choices[0].message.content
+        return {"script": script}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -62,17 +63,28 @@ Include: Beginning, Climax, and Ending."""
 async def upload_script(request: UploadScriptRequest):
     try:
         prompt = f"""
-Read this movie/TV script and extract 2–5 key characters.
+Extract 2 to 5 key characters from the movie or TV script below.
 
-Return a JSON array of objects, each with:
+For each character, return:
 - name
-- age
-- role
-- personality
-- appearance
-- voice_style
+- age (as a number)
+- role (1 short sentence)
+- personality (1-2 words)
+- appearance (brief description)
+- voice_style (tone or speaking style)
 
-JSON format only. No extra commentary.
+Respond ONLY with valid JSON like:
+[
+  {{
+    "name": "John",
+    "age": 32,
+    "role": "curious detective",
+    "personality": "skeptical",
+    "appearance": "tall, messy hair, trench coat",
+    "voice_style": "gravelly"
+  }},
+  ...
+]
 
 SCRIPT:
 {request.script}
@@ -85,14 +97,18 @@ SCRIPT:
 
         raw = response.choices[0].message.content.strip()
 
+        # Try direct JSON load
         try:
             characters = json.loads(raw)
         except json.JSONDecodeError:
+            # Try extracting only the array part
             try:
-                json_str = raw[raw.index("["): raw.rindex("]") + 1]
+                start = raw.index("[")
+                end = raw.rindex("]") + 1
+                json_str = raw[start:end]
                 characters = json.loads(json_str)
             except Exception:
-                raise HTTPException(status_code=500, detail="Could not parse valid character data.")
+                raise HTTPException(status_code=500, detail="Could not parse valid character data. Try rewording the script.")
 
         return {"characters": characters}
 
@@ -103,12 +119,7 @@ SCRIPT:
 @app.post("/generate-avatar")
 async def generate_avatar(request: AvatarRequest):
     try:
-        prompt = (
-            f"portrait of {request.name}, age {request.age}, "
-            f"{request.appearance}, personality: {request.personality}, "
-            f"facial expression: {request.emotion}, ultra-detailed, "
-            f"cinematic lighting, studio background"
-        )
+        full_prompt = f"portrait of {request.name}, age {request.age}, {request.appearance}, personality: {request.personality}, facial expression: {request.emotion}, ultra-detailed, cinematic lighting, studio background"
 
         replicate_api_token = os.getenv("REPLICATE_API_TOKEN")
         if not replicate_api_token:
@@ -123,7 +134,7 @@ async def generate_avatar(request: AvatarRequest):
             json={
                 "version": "7b0b37de0758655e73a3adf2daaf8b67aa8c45135d25f4d832da1f3c651d4f9a",
                 "input": {
-                    "prompt": prompt,
+                    "prompt": full_prompt,
                     "width": 512,
                     "height": 768,
                     "num_outputs": 1
