@@ -1,3 +1,5 @@
+// /frontend/pages/api/generate-avatar.js
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -21,7 +23,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        version: "7b0b37de0758655e73a3adf2daaf8b67aa8c45135d25f4d832da1f3c651d4f9a",
+        version: "db21e45a3b1151ae9c0fa60a3208c3e7f3e3ffcab6c171e42b27e3a79a0e10a4", // Stability AI SDXL
         input: {
           prompt: prompt,
           width: 512,
@@ -33,15 +35,15 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Replicate API Error Response:', errorText);
-      return res.status(500).json({ error: 'Failed to start avatar generation', details: errorText });
+      console.error('Replicate Error:', errorText);
+      return res.status(500).json({ error: 'Failed to generate avatar' });
     }
 
     const data = await response.json();
     const avatarUrl = data?.urls?.get;
 
     if (!avatarUrl) {
-      return res.status(500).json({ error: 'Avatar URL not found in response', raw: data });
+      return res.status(500).json({ error: 'Avatar URL not returned by Replicate' });
     }
 
     return res.status(200).json({ avatar_url: avatarUrl });
