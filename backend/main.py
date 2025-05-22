@@ -15,6 +15,7 @@ formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
+# --- FastAPI app ---
 app = FastAPI()
 
 # --- CORS ---
@@ -66,7 +67,7 @@ Include: Beginning, Climax, and Ending."""
         return {"script": script}
 
     except Exception as e:
-        logger.error(f"Script generation failed: {e}")
+        logger.exception("Script generation failed")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -96,7 +97,6 @@ SCRIPT:
         raw = response.choices[0].message.content.strip()
         logger.debug(f"Raw response from OpenAI:\n{raw}")
 
-        # Attempt to parse JSON
         try:
             characters = json.loads(raw)
         except json.JSONDecodeError:
@@ -106,14 +106,14 @@ SCRIPT:
                 end = raw.rindex("]") + 1
                 characters = json.loads(raw[start:end])
             except Exception as inner_e:
-                logger.error(f"JSON extraction failed: {inner_e}")
+                logger.exception("JSON extraction failed")
                 raise HTTPException(status_code=500, detail="Could not parse valid character data.")
 
         logger.info(f"Parsed characters: {characters}")
         return {"characters": characters}
 
     except Exception as e:
-        logger.error(f"Character extraction failed: {e}")
+        logger.exception("Character extraction failed")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -150,3 +150,9 @@ async def generate_avatar(request: AvatarRequest):
 
         output = response.json()
         avatar_url = output.get("urls", {}).get("get")
+        logger.info(f"Generated avatar URL: {avatar_url}")
+        return {"avatar_url": avatar_url}
+
+    except Exception as e:
+        logger.exception("Avatar generation failed")
+        raise HTTPException(status_code=500, detail=str(e))
