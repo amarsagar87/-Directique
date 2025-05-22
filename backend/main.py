@@ -150,4 +150,3 @@ async def generate_avatar(request: AvatarRequest):
 
         output = response.json()
         avatar_url = output.get("urls", {}).get("get")
-        |oai:code-citation|
