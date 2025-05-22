@@ -4,6 +4,7 @@ export default async function handler(req, res) {
   }
 
   const { name, age, appearance, personality, emotion } = req.body;
+
   const replicateApiToken = process.env.REPLICATE_API_TOKEN;
 
   if (!replicateApiToken) {
@@ -20,7 +21,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        version: "7762fd07cf82c948538e41f63f77d685e02b063e37e496e96eefd46c929f9bdc", // SDXL
+        version: "7762fd07cf82c948538e41f63f77d685e02b063e37e496e96eefd46c929f9bdc",
         input: {
           prompt,
           width: 512,
@@ -33,13 +34,23 @@ export default async function handler(req, res) {
     const result = await response.json();
 
     if (!response.ok) {
-      console.error('Replicate API error:', result);  // Log full error
-      return res.status(500).json({ error: 'Failed to start avatar generation', raw: result });
+      console.error('Replicate API error:', result);  // Print on server
+      return res.status(500).json({
+        error: 'Failed to start avatar generation',
+        replicateError: result // Return full raw response to browser
+      });
     }
 
-    res.status(200).json({ status: result.status, prediction: result });
+    res.status(200).json({
+      status: result.status,
+      prediction: result
+    });
+
   } catch (error) {
-    console.error('Server error:', error);  // Log unexpected error
-    res.status(500).json({ error: 'Server error while generating avatar', raw: error.message });
+    console.error('Server error:', error);
+    res.status(500).json({
+      error: 'Server error while generating avatar',
+      message: error.message
+    });
   }
 }
