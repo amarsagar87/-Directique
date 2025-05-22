@@ -4,16 +4,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 import os
 import json
-import re
 import requests
 import logging
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
+# --- Logging setup ---
+logger = logging.getLogger("directique")
+logger.setLevel(logging.DEBUG)
+handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 app = FastAPI()
 
-# CORS setup
+# --- CORS ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -22,10 +26,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# OpenAI client
+# --- OpenAI Client ---
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# --- MODELS ---
+# --- Models ---
 class ScriptRequest(BaseModel):
     title: str
     genre: str
@@ -41,13 +45,11 @@ class AvatarRequest(BaseModel):
     personality: str
     emotion: str  # e.g. "angry", "happy", "serious", "worried"
 
-# --- ENDPOINTS ---
+# --- Endpoints ---
 
 @app.post("/generate-script")
 async def generate_script(request: ScriptRequest):
     try:
-        logging.info(f"Generating script for: {request.title}")
-
         prompt = f"""Write a 3-act structured TV show or movie script based on the following:
 Title: {request.title}
 Genre: {request.genre}
@@ -60,30 +62,27 @@ Include: Beginning, Climax, and Ending."""
         )
 
         script = response.choices[0].message.content
+        logger.info("Script successfully generated")
         return {"script": script}
 
     except Exception as e:
-        logging.error(f"Script generation failed: {str(e)}")
+        logger.error(f"Script generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/upload-script")
 async def upload_script(request: UploadScriptRequest):
     try:
-        logging.info("Extracting characters from uploaded script...")
-
         prompt = f"""
-Read this movie/TV script and extract 2–5 key characters.
-
-Return a JSON array of objects, each with:
+Analyze this script and extract a JSON array of 2–5 main characters.
+Return a list where each object contains:
 - name
-- age
+- age (if mentioned)
 - role
 - personality
 - appearance
 - voice_style
-
-Only return JSON. No extra commentary or formatting.
+Return only valid JSON. No explanations or extra comments.
 
 SCRIPT:
 {request.script}
@@ -95,37 +94,37 @@ SCRIPT:
         )
 
         raw = response.choices[0].message.content.strip()
-        logging.info(f"Raw OpenAI response:\n{raw}")
+        logger.debug(f"Raw response from OpenAI:\n{raw}")
 
-        # Try extracting JSON
-        json_str = ""
-        if raw.startswith("[") and raw.endswith("]"):
-            json_str = raw
-        else:
-            match = re.search(r"\[.*\]", raw, re.DOTALL)
-            if match:
-                json_str = match.group(0)
-            else:
-                raise HTTPException(status_code=400, detail="Could not find character list. Try simplifying the script.")
+        # Attempt to parse JSON
+        try:
+            characters = json.loads(raw)
+        except json.JSONDecodeError:
+            logger.warning("Initial JSON parsing failed. Trying to extract JSON substring...")
+            try:
+                start = raw.index("[")
+                end = raw.rindex("]") + 1
+                characters = json.loads(raw[start:end])
+            except Exception as inner_e:
+                logger.error(f"JSON extraction failed: {inner_e}")
+                raise HTTPException(status_code=500, detail="Could not parse valid character data.")
 
-        characters = json.loads(json_str)
-        logging.info(f"Characters extracted: {characters}")
+        logger.info(f"Parsed characters: {characters}")
         return {"characters": characters}
 
     except Exception as e:
-        logging.error(f"Failed to parse characters: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to parse character data. Try a simpler script.")
+        logger.error(f"Character extraction failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/generate-avatar")
 async def generate_avatar(request: AvatarRequest):
     try:
-        logging.info(f"Generating avatar for {request.name}...")
-
         full_prompt = f"portrait of {request.name}, age {request.age}, {request.appearance}, personality: {request.personality}, facial expression: {request.emotion}, ultra-detailed, cinematic lighting, studio background"
 
         replicate_api_token = os.getenv("REPLICATE_API_TOKEN")
         if not replicate_api_token:
+            logger.error("Missing Replicate API token")
             raise HTTPException(status_code=500, detail="Replicate API token is missing")
 
         response = requests.post(
@@ -135,7 +134,7 @@ async def generate_avatar(request: AvatarRequest):
                 "Content-Type": "application/json"
             },
             json={
-                "version": "7b0b37de0758655e73a3adf2daaf8b67aa8c45135d25f4d832da1f3c651d4f9a",  # Stable Diffusion
+                "version": "7b0b37de0758655e73a3adf2daaf8b67aa8c45135d25f4d832da1f3c651d4f9a",
                 "input": {
                     "prompt": full_prompt,
                     "width": 512,
@@ -146,14 +145,9 @@ async def generate_avatar(request: AvatarRequest):
         )
 
         if response.status_code != 201:
-            logging.error(f"Replicate API error: {response.text}")
+            logger.error(f"Avatar generation failed: {response.text}")
             raise HTTPException(status_code=500, detail="Failed to generate avatar")
 
         output = response.json()
         avatar_url = output.get("urls", {}).get("get")
-        logging.info(f"Avatar URL: {avatar_url}")
-        return {"avatar_url": avatar_url}
-
-    except Exception as e:
-        logging.error(f"Avatar generation failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        |oai:code-citation|
